@@ -156,13 +156,15 @@ def random_corruption(img, rng, names, p=0.5, max_severity=5.0, max_ops=2):
 # --------------------------------------------------------------------------
 # Config -> callable
 # --------------------------------------------------------------------------
-def build_augment(cfg):
-    """cfg keys (all optional): mosaic (prob), flip (bool), scale_translate (bool),
-    cutout (bool), photo (bool), corrupt (list of corruption names), corrupt_p (float)."""
-    if not cfg:
-        return None
+class Augment:
+    """Picklable augmentation pipeline (a class, not a closure, so DataLoader worker
+    processes can receive it on Windows, where workers are spawned, not forked)."""
 
-    def augment(img, boxes, rng, dataset):
+    def __init__(self, cfg):
+        self.cfg = dict(cfg)
+
+    def __call__(self, img, boxes, rng, dataset):
+        cfg = self.cfg
         if cfg.get("mosaic", 0) and rng.random() < cfg["mosaic"]:
             img, boxes = mosaic(dataset, rng)
         if cfg.get("flip"):
@@ -177,4 +179,8 @@ def build_augment(cfg):
             img = random_corruption(img, rng, cfg["corrupt"], p=cfg.get("corrupt_p", 0.5))
         return np.ascontiguousarray(img), boxes.astype(np.float32).reshape(-1, 4)
 
-    return augment
+
+def build_augment(cfg):
+    """cfg keys (all optional): mosaic (prob), flip (bool), scale_translate (bool),
+    cutout (bool), photo (bool), corrupt (list of corruption names), corrupt_p (float)."""
+    return Augment(cfg) if cfg else None
