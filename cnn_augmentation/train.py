@@ -1,148 +1,121 @@
-"""Train the bird CNN with a named augmentation config.
+"""Train the bird CNN with one of four augmentation settings.
 
-Example:
-    python train.py --data <DATASET_ROOT> --config full --seed 0
-    python train.py --data <DATASET_ROOT> --config baseline --seed 0 --init tune-512-clean.pt
+    python train.py --aug none
+    python train.py --aug basic
+    python train.py --aug robust
+    python train.py --aug robust_seen
 
-Writes runs/<config>_s<seed>/best.pt (best clean val mAP@0.5), last.pt and history.json.
-Checkpoints use the same {"state": ..., "map": ...} format as the original notebook.
-Model selection uses only the *clean validation* set; the test set is never touched here.
+Saves the model with the best validation mAP to runs/<aug>.pt
 """
 import argparse
-import json
-import math
 import os
 import random
 import time
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
-from augment import build_augment
-from data import BirdDataset, load_split, read_rgb
-from evaluate import predict_images
-from experiments import CONFIGS
-from metrics import average_precision
-from model import Net, detection_loss, load_checkpoint
+from common import IMG, BirdData, Net, load_split, loss_fn, mean_average_precision, predict, read_image
+from corruptions import CORRUPTIONS, corrupt
+
+# "robust_seen" only trains with these; the other corruptions stay unseen,
+# so we can test whether robustness carries over to new kinds of damage.
+SEEN = ["noise", "dark", "jpeg"]
 
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+def flip(img, boxes):
+    img = img[:, ::-1].copy()
+    boxes[:, [0, 2]] = IMG - boxes[:, [2, 0]]
+    return img, boxes
+
+
+def colour_jitter(img):
+    """Random brightness, contrast and saturation (different weather / time of day)."""
+    x = img.astype(np.float32)
+    x = x * random.uniform(0.7, 1.3)                                  # brightness
+    x = (x - x.mean()) * random.uniform(0.7, 1.3) + x.mean()           # contrast
+    grey = x.mean(axis=2, keepdims=True)
+    x = grey + (x - grey) * random.uniform(0.7, 1.3)                   # saturation
+    return np.clip(x, 0, 255).astype(np.uint8)
+
+
+def make_augment(aug):
+    if aug == "none":
+        return None
+    corruption_list = list(CORRUPTIONS) if aug == "robust" else SEEN
+
+    def augment(img, boxes):
+        if random.random() < 0.5:
+            img, boxes = flip(img, boxes)
+        img = colour_jitter(img)
+        # robust settings: half the time, also damage the image with a random corruption
+        if aug != "basic" and random.random() < 0.5:
+            name = random.choice(corruption_list)
+            img = corrupt(img, name, random.randint(1, 5), seed=random.randint(0, 10 ** 9))
+        return img, boxes
+
+    return augment
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", default=os.environ.get("BIRD_DATA"),
-                    help="dataset root containing images/ and labels/ (or set BIRD_DATA)")
-    ap.add_argument("--config", default="baseline", choices=sorted(CONFIGS))
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--epochs", type=int, default=60)
-    ap.add_argument("--batch", type=int, default=16)
-    ap.add_argument("--lr", type=float, default=2e-3)
-    ap.add_argument("--wd", type=float, default=1e-4)
-    ap.add_argument("--init", default=None, help="optional checkpoint to fine-tune from")
-    ap.add_argument("--train-frac", type=float, default=1.0,
-                    help="use a random fraction of the training images (data-scarcity study)")
-    ap.add_argument("--eval-every", type=int, default=5)
-    ap.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1))
-    ap.add_argument("--out", default="runs")
-    ap.add_argument("--name", default=None, help="run name (default <config>_s<seed>)")
-    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    args = ap.parse_args()
-    if not args.data:
-        ap.error("--data is required (or set the BIRD_DATA environment variable)")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--aug", default="none", choices=["none", "basic", "robust", "robust_seen"])
+    parser.add_argument("--data", default=os.environ.get("BIRD_DATA"), help="dataset folder")
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument("--lr", type=float, default=2e-3)
+    parser.add_argument("--frac", type=float, default=1.0, help="use only this fraction of training images")
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
 
-    set_seed(args.seed)
-    device = torch.device(args.device)
-    name = args.name or f"{args.config}_s{args.seed}" + \
-        (f"_frac{args.train_frac:g}" if args.train_frac < 1 else "")
-    run_dir = os.path.join(args.out, name)
-    os.makedirs(run_dir, exist_ok=True)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     train_items = load_split(args.data, "train")
-    if args.train_frac < 1:
-        idx = np.random.default_rng(args.seed).permutation(len(train_items))
-        train_items = [train_items[i] for i in sorted(idx[:int(len(idx) * args.train_frac)])]
+    random.shuffle(train_items)
+    train_items = train_items[:int(len(train_items) * args.frac)]
     val_items = load_split(args.data, "val")
-    val_images = [read_rgb(p) for p, _ in val_items]
-    val_gts = [b for _, b in val_items]
+    val_images = [read_image(p) for p, _ in val_items]
+    val_boxes = [b for _, b in val_items]
 
-    cfg = CONFIGS[args.config]
-    ds = BirdDataset(train_items, augment=build_augment(cfg))
-    g = torch.Generator()
-    g.manual_seed(args.seed)
-    loader = DataLoader(ds, batch_size=args.batch, shuffle=True, num_workers=args.workers,
-                        drop_last=True, generator=g, pin_memory=device.type == "cuda",
-                        persistent_workers=args.workers > 0)
-
+    loader = torch.utils.data.DataLoader(BirdData(train_items, make_augment(args.aug)),
+                                         batch_size=args.batch, shuffle=True)
     model = Net()
-    if args.init:
-        load_checkpoint(model, args.init)
-        print(f"initialised from {args.init}")
-    else:
-        model.init_for_training()
-    model.to(device)
+    torch.nn.init.constant_(model.hm.bias, -2.19)   # start with low bird scores (CenterNet trick)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
 
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
-    steps = args.epochs * len(loader)
-    warm = min(len(loader), steps // 10)
-    sched = torch.optim.lr_scheduler.LambdaLR(
-        opt, lambda t: (t + 1) / warm if t < warm
-        else 0.5 * (1 + math.cos(math.pi * (t - warm) / max(steps - warm, 1))))
-
-    print(f"run {name}: config={cfg}  train={len(ds)}  val={len(val_items)}  device={device}")
-    history, best_map, t_start = [], -1.0, time.time()
+    os.makedirs("runs", exist_ok=True)
+    best_map, start = -1, time.time()
+    print(f"training '{args.aug}' on {len(train_items)} images for {args.epochs} epochs")
     for epoch in range(1, args.epochs + 1):
         model.train()
-        t_ep, sums, n = time.time(), {"loss": 0, "hm": 0, "wh": 0, "off": 0}, 0
-        for x, tgt in loader:
-            x = x.to(device, non_blocking=True)
-            tgt = {k: v.to(device, non_blocking=True) for k, v in tgt.items()}
-            loss, parts = detection_loss(model(x), tgt)
-            opt.zero_grad(set_to_none=True)
+        total = 0
+        for img, *targets in loader:
+            loss = loss_fn(model(img), *targets)
+            optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
-            opt.step()
-            sched.step()
-            sums["loss"] += loss.item()
-            for k, v in parts.items():
-                sums[k] += v
-            n += 1
-        rec = {"epoch": epoch, **{k: v / max(n, 1) for k, v in sums.items()},
-               "epoch_s": time.time() - t_ep}
+            optimizer.step()
+            total += loss.item()
+        scheduler.step()
+        msg = f"epoch {epoch:2d}  loss {total / len(loader):.3f}  ({(time.time() - start) / 60:.0f} min)"
 
-        if epoch % args.eval_every == 0 or epoch == args.epochs:
-            preds = predict_images(model, val_images, device)
-            rec["val_map"] = average_precision(preds, val_gts)
-            if rec["val_map"] > best_map:
-                best_map = rec["val_map"]
-                torch.save({"state": model.state_dict(), "map": best_map, "epoch": epoch,
-                            "config": args.config, "cfg": cfg, "args": vars(args),
-                            "train_time_s": time.time() - t_start},
-                           os.path.join(run_dir, "best.pt"))
-        history.append(rec)
-        print(f"ep {epoch:3d}  loss {rec['loss']:.3f} (hm {rec['hm']:.3f} wh {rec['wh']:.3f} "
-              f"off {rec['off']:.3f})  {rec['epoch_s']:.0f}s"
-              + (f"  val mAP@0.5 {rec['val_map']:.4f} (best {best_map:.4f})" if "val_map" in rec else ""))
+        if epoch % 5 == 0 or epoch == args.epochs:
+            model.eval()
+            val_map = mean_average_precision([predict(model, im) for im in val_images], val_boxes)
+            msg += f"  val mAP@0.5 {val_map:.3f}"
+            if val_map > best_map:
+                best_map = val_map
+                torch.save({"state": model.state_dict(), "map": val_map, "aug": args.aug},
+                           f"runs/{args.aug}.pt")
+        print(msg)
 
-    total = time.time() - t_start
-    torch.save({"state": model.state_dict(), "map": history[-1].get("val_map"),
-                "epoch": args.epochs, "config": args.config, "cfg": cfg,
-                "args": vars(args), "train_time_s": total}, os.path.join(run_dir, "last.pt"))
-    # record the *total* training time in best.pt as well (the spec asks to compare training times)
-    best_path = os.path.join(run_dir, "best.pt")
-    if os.path.exists(best_path):
-        best = torch.load(best_path, map_location="cpu", weights_only=False)
-        best["train_time_s"] = total
-        torch.save(best, best_path)
-    with open(os.path.join(run_dir, "history.json"), "w") as f:
-        json.dump({"name": name, "config": args.config, "cfg": cfg, "args": vars(args),
-                   "best_val_map": best_map, "train_time_s": total, "history": history}, f, indent=1)
-    print(f"done in {total / 60:.1f} min, best val mAP@0.5 = {best_map:.4f}")
+    # store the total training time too (the spec asks us to compare training times)
+    ckpt = torch.load(f"runs/{args.aug}.pt", weights_only=False)
+    ckpt["train_minutes"] = (time.time() - start) / 60
+    torch.save(ckpt, f"runs/{args.aug}.pt")
+    print(f"done, best val mAP@0.5 = {best_map:.3f}, saved runs/{args.aug}.pt")
 
 
 if __name__ == "__main__":
