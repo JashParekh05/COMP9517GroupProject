@@ -15,7 +15,7 @@ import time
 import numpy as np
 import torch
 
-from common import IMG, BirdData, Net, load_split, loss_fn, mean_average_precision, predict, read_image
+from common import DEFAULT_DATA, IMG, BirdData, Net, load_split, loss_fn, mean_average_precision, predict, read_image
 from corruptions import CORRUPTIONS, corrupt
 
 # "robust_seen" only trains with these; the other corruptions stay unseen,
@@ -60,7 +60,7 @@ def make_augment(aug):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--aug", default="none", choices=["none", "basic", "robust", "robust_seen"])
-    parser.add_argument("--data", default=os.environ.get("BIRD_DATA"), help="dataset folder")
+    parser.add_argument("--data", default=DEFAULT_DATA, help="dataset folder")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-3)

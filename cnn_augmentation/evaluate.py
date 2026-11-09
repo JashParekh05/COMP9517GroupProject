@@ -16,7 +16,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from common import load_model, load_split, mean_average_precision, predict, read_image
+from common import DEFAULT_DATA, load_model, load_split, mean_average_precision, predict, read_image
 from corruptions import CORRUPTIONS, corrupt
 from train import SEEN
 
@@ -63,7 +63,7 @@ def show_example(models, item, index, corruption, level):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoints", nargs="+")
-    parser.add_argument("--data", default=os.environ.get("BIRD_DATA"), help="dataset folder")
+    parser.add_argument("--data", default=DEFAULT_DATA, help="dataset folder")
     parser.add_argument("--split", default="val", choices=["val", "test"])
     parser.add_argument("--example", type=int, help="only draw predictions for this image index")
     parser.add_argument("--corruption", choices=list(CORRUPTIONS))

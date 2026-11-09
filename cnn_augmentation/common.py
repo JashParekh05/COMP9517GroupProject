@@ -14,12 +14,19 @@ IMG = 512          # all images are 512x512
 STRIDE = 4         # the network output is 4x smaller than the image
 OUT = IMG // STRIDE
 
+# Where the dataset is if you don't pass --data: Group Project/dataset/..., next to the repo folder.
+# Can also be set with the BIRD_DATA environment variable.
+DEFAULT_DATA = os.environ.get("BIRD_DATA") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "dataset", "Beach Bird Detection Dataset v1.0")
+
 
 # ---------------------------------------------------------------- data
 def load_split(root, split):
     """Returns a list of (image_path, boxes) for 'train', 'val' or 'test'."""
     items = []
     img_dir = os.path.join(root, "images", split)
+    if not os.path.isdir(img_dir):
+        raise SystemExit(f"Dataset not found: {img_dir}\nPass the dataset folder with --data \"...\"")
     for name in sorted(os.listdir(img_dir)):
         label_file = os.path.join(root, "labels", split, os.path.splitext(name)[0] + ".txt")
         boxes = []
