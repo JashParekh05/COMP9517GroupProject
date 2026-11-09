@@ -13,6 +13,7 @@ import torch.nn.functional as F
 IMG = 512          # all images are 512x512
 STRIDE = 4         # the network output is 4x smaller than the image
 OUT = IMG // STRIDE
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"   # use the GPU if there is one (e.g. Colab)
 
 # Where the dataset is if you don't pass --data: Group Project/dataset/..., next to the repo folder.
 # Can also be set with the BIRD_DATA environment variable.
@@ -121,7 +122,7 @@ def load_model(path):
     model = Net()
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     model.load_state_dict(ckpt["state"])
-    return model.eval()
+    return model.to(DEVICE).eval()
 
 
 def loss_fn(outputs, heat, size, offset, mask):
@@ -148,7 +149,8 @@ def predict(model, images, thr=0.05, max_birds=200, batch_size=16):
     results = []
     for start in range(0, len(images), batch_size):
         batch = torch.stack([to_tensor(img) for img in images[start:start + batch_size]])
-        heat, size, off = model(batch)
+        device = next(model.parameters()).device
+        heat, size, off = [t.cpu() for t in model(batch.to(device))]       # run on GPU if there is one
         heat = torch.sigmoid(heat)[:, 0]                                    # B x 128 x 128
         is_peak = (heat == F.max_pool2d(heat[:, None], 3, 1, 1)[:, 0]) & (heat > thr)
 

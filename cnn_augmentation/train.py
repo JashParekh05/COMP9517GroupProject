@@ -15,7 +15,7 @@ import time
 import numpy as np
 import torch
 
-from common import DEFAULT_DATA, IMG, BirdData, Net, load_split, loss_fn, mean_average_precision, predict, read_image
+from common import DEFAULT_DATA, DEVICE, IMG, BirdData, Net, load_split, loss_fn, mean_average_precision, predict, read_image
 from corruptions import CORRUPTIONS, corrupt
 
 # "robust_seen" only trains with these; the other corruptions stay unseen,
@@ -81,18 +81,19 @@ def main():
 
     loader = torch.utils.data.DataLoader(BirdData(train_items, make_augment(args.aug)),
                                          batch_size=args.batch, shuffle=True)
-    model = Net()
+    model = Net().to(DEVICE)
     torch.nn.init.constant_(model.hm.bias, -2.19)   # start with low bird scores (CenterNet trick)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
 
     os.makedirs("runs", exist_ok=True)
     best_map, start = -1, time.time()
-    print(f"training '{args.aug}' on {len(train_items)} images for {args.epochs} epochs")
+    print(f"training '{args.aug}' on {len(train_items)} images for {args.epochs} epochs ({DEVICE})")
     for epoch in range(1, args.epochs + 1):
         model.train()
         total = 0
         for img, *targets in loader:
+            img, targets = img.to(DEVICE), [t.to(DEVICE) for t in targets]
             loss = loss_fn(model(img), *targets)
             optimizer.zero_grad()
             loss.backward()
