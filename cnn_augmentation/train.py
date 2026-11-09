@@ -66,6 +66,9 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--frac", type=float, default=1.0, help="use only this fraction of training images")
     parser.add_argument("--seed", type=int, default=0)
+    # worker processes that load + augment images while the GPU trains.
+    # Not on Windows: there the augment function can't be sent to the workers.
+    parser.add_argument("--workers", type=int, default=0 if os.name == "nt" else 2)
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -80,7 +83,7 @@ def main():
     val_boxes = [b for _, b in val_items]
 
     loader = torch.utils.data.DataLoader(BirdData(train_items, make_augment(args.aug)),
-                                         batch_size=args.batch, shuffle=True)
+                                         batch_size=args.batch, shuffle=True, num_workers=args.workers)
     model = Net().to(DEVICE)
     torch.nn.init.constant_(model.hm.bias, -2.19)   # start with low bird scores (CenterNet trick)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
