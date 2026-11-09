@@ -26,14 +26,14 @@ COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#6250d6"]
 def evaluate(model, images, boxes):
     """Returns {"clean": mAP, "blur": [mAP level1..5], ...} and inference ms per image."""
     start = time.time()
-    result = {"clean": mean_average_precision([predict(model, im) for im in images], boxes)}
+    result = {"clean": mean_average_precision(predict(model, images), boxes)}
     ms = (time.time() - start) / len(images) * 1000
     for name in CORRUPTIONS:
         result[name] = []
         for level in range(1, 6):
             # seed = image index, so every model sees exactly the same corrupted images
-            preds = [predict(model, corrupt(im, name, level, seed=i)) for i, im in enumerate(images)]
-            result[name].append(mean_average_precision(preds, boxes))
+            corrupted = [corrupt(im, name, level, seed=i) for i, im in enumerate(images)]
+            result[name].append(mean_average_precision(predict(model, corrupted), boxes))
         print(f"   {name:<10} " + "  ".join(f"{v:.3f}" for v in result[name]))
     return result, ms
 
@@ -45,7 +45,7 @@ def show_example(models, item, index, corruption, level):
         img = corrupt(img, corruption, level, seed=index)
     fig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 5), squeeze=False)
     for ax, (name, model) in zip(axes[0], models.items()):
-        boxes, scores = predict(model, img)
+        boxes, scores = predict(model, [img])[0]
         drawn = img.copy()
         for x1, y1, x2, y2 in gt.astype(int):
             cv2.rectangle(drawn, (x1, y1), (x2, y2), (0, 220, 0), 2)        # green = real bird

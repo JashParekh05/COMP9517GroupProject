@@ -103,7 +103,7 @@ def main():
 
         if epoch % 5 == 0 or epoch == args.epochs:
             model.eval()
-            val_map = mean_average_precision([predict(model, im) for im in val_images], val_boxes)
+            val_map = mean_average_precision(predict(model, val_images), val_boxes)
             msg += f"  val mAP@0.5 {val_map:.3f}"
             if val_map > best_map:
                 best_map = val_map

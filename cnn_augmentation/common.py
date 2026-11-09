@@ -134,23 +134,31 @@ def loss_fn(outputs, heat, size, offset, mask):
 
 
 @torch.no_grad()
-def predict(model, img, thr=0.05, max_birds=200):
+def predict(model, images, thr=0.05, max_birds=200, batch_size=16):
     """Peaks of the heatmap -> boxes (same idea as `predict` in the notebook).
-    Returns (boxes [N,4], scores [N])."""
-    heat, size, off = model(to_tensor(img)[None])
-    heat = torch.sigmoid(heat)[0, 0]
-    is_peak = (heat == F.max_pool2d(heat[None, None], 3, 1, 1)[0, 0]) & (heat > thr)
-    ys, xs = torch.where(is_peak)
-    scores = heat[ys, xs]
-    if len(scores) > max_birds:        # notebook used 100, but some images have 130 birds
-        scores, keep = scores.topk(max_birds)
-        ys, xs = ys[keep], xs[keep]
-    w = size[0, 0, ys, xs].clamp(max=2).exp() * IMG
-    h = size[0, 1, ys, xs].clamp(max=2).exp() * IMG
-    cx = (xs + off[0, 0, ys, xs]) * STRIDE
-    cy = (ys + off[0, 1, ys, xs]) * STRIDE
-    boxes = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], 1)
-    return boxes.numpy(), scores.numpy()
+    Takes a list of images and runs them through the network in batches (faster).
+    Returns a list with one (boxes [N,4], scores [N]) per image."""
+    results = []
+    for start in range(0, len(images), batch_size):
+        batch = torch.stack([to_tensor(img) for img in images[start:start + batch_size]])
+        heat, size, off = model(batch)
+        heat = torch.sigmoid(heat)[:, 0]                                    # B x 128 x 128
+        is_peak = (heat == F.max_pool2d(heat[:, None], 3, 1, 1)[:, 0]) & (heat > thr)
+
+        # the number of birds differs per image, so the boxes are read out image by image
+        for b in range(len(batch)):
+            ys, xs = torch.where(is_peak[b])
+            scores = heat[b, ys, xs]
+            if len(scores) > max_birds:    # notebook used 100, but some images have 130 birds
+                scores, keep = scores.topk(max_birds)
+                ys, xs = ys[keep], xs[keep]
+            w = size[b, 0, ys, xs].clamp(max=2).exp() * IMG
+            h = size[b, 1, ys, xs].clamp(max=2).exp() * IMG
+            cx = (xs + off[b, 0, ys, xs]) * STRIDE
+            cy = (ys + off[b, 1, ys, xs]) * STRIDE
+            boxes = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], 1)
+            results.append((boxes.numpy(), scores.numpy()))
+    return results
 
 
 # ---------------------------------------------------------------- metric
