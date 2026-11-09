@@ -30,12 +30,14 @@ column) shows whether robustness carries over to kinds of damage the model never
 
 ## How to run
 
-```powershell
+The scripts look for the dataset in `Group Project/dataset/Beach Bird Detection Dataset v1.0`
+(next to the repo folder). If it is somewhere else, add `--data "path\to\dataset"`.
+
+```
 pip install torch numpy opencv-python matplotlib
 cd cnn_augmentation
-$env:BIRD_DATA = "G:\My Drive\ETH\Semester 5 (UNSW)\CV\assignments\Group Project\dataset\Beach Bird Detection Dataset v1.0"
 
-python corruptions.py "$env:BIRD_DATA\images\val\<some image>.jpg"   # picture of all corruptions
+python corruptions.py "<path to any image>.jpg"   # picture of all corruptions
 
 python train.py --aug none          # each takes about 1.5-2 h on a laptop CPU (30 epochs)
 python train.py --aug basic
