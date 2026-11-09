@@ -43,7 +43,7 @@ def show_example(models, item, index, corruption, level):
     img = read_image(path)
     if corruption:
         img = corrupt(img, corruption, level, seed=index)
-    fig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 5), squeeze=False)
+    fig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 5.5), squeeze=False)
     for ax, (name, model) in zip(axes[0], models.items()):
         boxes, scores = predict(model, [img])[0]
         drawn = img.copy()
