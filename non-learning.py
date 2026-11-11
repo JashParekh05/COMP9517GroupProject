@@ -278,7 +278,18 @@ def debug_one(item, detector="dog", out="debug.jpg", **params):
     for x1, y1, x2, y2 in b[np.argsort(-s)[:50]].astype(int):
         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 1)
     cv2.imwrite(out, img)
- 
+
+# parameter grids searched on the validation set (module level so robustness.py can reuse them)
+GRIDS = {
+    "dog": [dict(smallest_sigma_blur=s, box_scale=b, refine=rf)
+            for s in [2.0, 3.0] for b in [2.0, 2.5, 3.0] for rf in [False, True]],
+    "doh": [dict(smallest_sigma_blur=s, box_scale=b, refine=rf)
+            for s in [2.0, 3.0] for b in [2.0, 2.5, 3.0] for rf in [False, True]],
+    "mser": [dict(delta=d, min_area=a) for d in [3, 5, 8] for a in [5, 15]],
+    "threshold": [dict(block=bl, C=c) for bl in [31, 51, 101]
+                  for c in [5, 10, 20]],
+}
+
 if __name__ == "__main__":
     ROOT = "dataset"
  
@@ -288,17 +299,7 @@ if __name__ == "__main__":
     """debug_one(next(it for it in val if len(it[1])), detector="doh",
               smallest_sigma_blur=2.0, box_scale=2.5)
     raise SystemExit"""
- 
-    GRIDS = {
-        "dog": [dict(smallest_sigma_blur=s, box_scale=b, refine=rf)
-                for s in [2.0, 3.0] for b in [2.0, 2.5, 3.0] for rf in [False, True]],
-        "doh": [dict(smallest_sigma_blur=s, box_scale=b, refine=rf)
-                for s in [2.0, 3.0] for b in [2.0, 2.5, 3.0] for rf in [False, True]],
-        "mser": [dict(delta=d, min_area=a) for d in [3, 5, 8] for a in [5, 15]],
-        "threshold": [dict(block=bl, C=c) for bl in [31, 51, 101]
-                      for c in [5, 10, 20]],
-    }
- 
+
     best_per_method = {}
     for name, grid in GRIDS.items():
         best = None

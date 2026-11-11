@@ -1,3 +1,5 @@
-/dataset/
+/dataset
 /comp9517proj/
 .DS_Store
+/results_nonlearning/*.txt
+__pycache__/

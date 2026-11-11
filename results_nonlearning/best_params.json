@@ -1,0 +1,33 @@
+{
+ "dog": {
+  "params": {
+   "smallest_sigma_blur": 3.0,
+   "box_scale": 3.0,
+   "refine": true
+  },
+  "val_map": 0.033428129383915345
+ },
+ "doh": {
+  "params": {
+   "smallest_sigma_blur": 3.0,
+   "box_scale": 3.0,
+   "refine": false
+  },
+  "val_map": 0.032,
+  "note": "refine=True scored 0.036 but is ~19x slower (2.6 s/img); refine=False used for the corruption sweep"
+ },
+ "mser": {
+  "params": {
+   "delta": 8,
+   "min_area": 15
+  },
+  "val_map": 0.001718388817946857
+ },
+ "threshold": {
+  "params": {
+   "block": 31,
+   "C": 5
+  },
+  "val_map": 0.005088357034801837
+ }
+}
