@@ -131,9 +131,9 @@ def threshold_detect(gray, block=51, C=10, open_k=3, min_area=10,
     eq = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray) #CLAHE splits the image into a 8x8 grid and stretches the contrast. clipLimit stops from overamplifying noise.
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_k, open_k))
     boxes, scores = [], []
-    for mode in (cv2.THRESH_BINARY_INV, cv2.THRESH_BINARY):
+    for mode, c in ((cv2.THRESH_BINARY_INV, C), (cv2.THRESH_BINARY, -C)):
         bw = cv2.adaptiveThreshold(eq, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                   mode, block, C)
+                                   mode, block, c)
         bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kernel)
         n, _, stats, _ = cv2.connectedComponentsWithStats(bw)
         for x, y, w, h, area in stats[1:]:
@@ -294,11 +294,7 @@ if __name__ == "__main__":
     ROOT = "dataset"
  
     val = load_split(ROOT, "val")
-    val = val[:20] #testing
     box_size_stats(val)
-    """debug_one(next(it for it in val if len(it[1])), detector="doh",
-              smallest_sigma_blur=2.0, box_scale=2.5)
-    raise SystemExit"""
 
     best_per_method = {}
     for name, grid in GRIDS.items():
