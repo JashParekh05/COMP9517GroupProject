@@ -1,6 +1,6 @@
 """Robustness of the non-learning detectors to image corruptions.
 
-Uses Jan's cnn_augmentation/corruptions.py, so the non-learning detectors are tested on
+Uses cnn_augmentation/corruptions.py, so the non-learning detectors are tested on
 exactly the same corrupted pixels as the CNN (same image order, same seed = image index,
 same RGB channel order before corrupting).
 
@@ -29,7 +29,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "cnn_augmentation"))
-from corruptions import CORRUPTIONS, corrupt  # noqa: E402  (Jan's file)
+from corruptions import CORRUPTIONS, corrupt  # noqa: E402  (shared with the CNN pipeline)
 
 # "non-learning.py" has a hyphen, so it can't be imported with a normal import statement
 nl = importlib.import_module("non-learning")
@@ -41,7 +41,7 @@ COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
 
 
 def read_rgb(path):
-    """Read exactly like Jan's common.read_image: RGB, 512x512.
+    """Read exactly like cnn_augmentation/common.read_image: RGB, 512x512.
     RGB order matters: noise/occlusion colours are drawn per channel, so BGR would give
     different grey images than the ones the CNN sees."""
     img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
@@ -79,7 +79,7 @@ def detect_all(detector, params, grays):
 
 
 def score(preds, gts):
-    """mAP@0.5 using Riya's average_precision, with its per-call print silenced."""
+    """mAP@0.5 using non-learning.py's average_precision, with its per-call print silenced."""
     with contextlib.redirect_stdout(io.StringIO()):
         return nl.average_precision(preds, gts)
 
@@ -135,7 +135,7 @@ def evaluate(items, detectors, params, split):
         for d in detectors:
             results[d][name] = []
         for level in range(1, 6):
-            # seed = image index, exactly like Jan's evaluate.py
+            # seed = image index, the same as cnn_augmentation/evaluate.py
             grays = [to_gray(corrupt(im, name, level, seed=i)) for i, im in enumerate(rgbs)]
             row = []
             for d in detectors:
@@ -158,7 +158,7 @@ def evaluate(items, detectors, params, split):
     out = os.path.join(OUT_DIR, f"results_{split}")
     json.dump(results, open(out + ".json", "w"), indent=1)
 
-    # same layout as Jan's results plot: one panel per corruption, one line per method
+    # same layout as the CNN results plot: one panel per corruption, one line per method
     fig, axes = plt.subplots(2, 4, figsize=(13, 6), sharey=True)
     for ax, c in zip(axes.flat, CORRUPTIONS):
         for colour, (d, r) in zip(COLOURS, results.items()):
