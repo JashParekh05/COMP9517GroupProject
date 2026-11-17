@@ -1,17 +1,3 @@
-"""Robustness of the non-learning detectors to image corruptions.
-
-Uses cnn_augmentation/corruptions.py, so the non-learning detectors are tested on
-exactly the same corrupted pixels as the CNN (same image order, same seed = image index,
-same RGB channel order before corrupting).
-
-    python robustness.py --tune                       # 1) pick best params per detector on clean val
-    python robustness.py                              # 2) clean + 7 corruptions x 5 levels on val
-    python robustness.py --split test                 # 3) final numbers - run ONCE at the very end
-    python robustness.py --example 5 --corruption blur --level 4   # picture of predictions
-
-Quick check:  python robustness.py --limit 30 --detectors dog mser
-Outputs go to results_nonlearning/.
-"""
 import argparse
 import contextlib
 import importlib
