@@ -1,0 +1,9 @@
+/dataset
+/comp9517proj/
+.DS_Store
+/results_nonlearning/*.txt
+__pycache__/
+
+# report drafts and report-only figures (kept out of the code submission)
+/report/
+/results_nonlearning/figures/
