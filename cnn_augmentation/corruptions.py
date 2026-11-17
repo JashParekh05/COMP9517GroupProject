@@ -1,11 +1,3 @@
-"""Image corruptions with 5 levels each (idea from ImageNet-C, Hendrycks & Dietterich 2019).
-
-Only uses numpy + OpenCV, so the non-learning method can use exactly the same images:
-    from corruptions import corrupt, CORRUPTIONS
-    bad_img = corrupt(img, "blur", level=3, seed=image_index)
-
-Run `python corruptions.py some_image.jpg` to save a picture of all corruptions.
-"""
 import sys
 
 import cv2
