@@ -1,0 +1,32 @@
+{
+ "dog": {
+  "params": {
+   "smallest_sigma_blur": 3.0,
+   "box_scale": 3.0,
+   "refine": true
+  },
+  "val_map": 0.0334
+ },
+ "doh": {
+  "params": {
+   "smallest_sigma_blur": 3.0,
+   "box_scale": 3.0,
+   "refine": false
+  },
+  "val_map": 0.032
+ },
+ "mser": {
+  "params": {
+   "delta": 8,
+   "min_area": 15
+  },
+  "val_map": 0.0017
+ },
+ "threshold": {
+  "params": {
+   "block": 31,
+   "C": 5
+  },
+  "val_map": 0.0047
+ }
+}
