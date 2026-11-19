@@ -1,16 +1,14 @@
 # Beach Bird Detection (COMP9517)
 
-This package contains the code for two bird detectors on the Beach Bird Detection Dataset v1.0:
+Thank you for trying our code. This package has two methods for detecting birds in beach and wetland images:
 
 1. **Method 1** (`nonlearning/`): classical detectors with no training (DoG, DoH, MSER, adaptive thresholding)
 2. **Method 2** (`cnn/`): a small CenterNet-style CNN trained from scratch, with optional data augmentation
 
-Trained weights and the dataset are not included. Download the dataset yourself, then train or run the scripts as shown below.
-
 ## Requirements
 
 - Python 3.10 or newer
-- Beach Bird Detection Dataset v1.0, with this layout:
+- Beach Bird Detection Dataset v1.0 in this layout:
 
 ```
 Beach Bird Detection Dataset v1.0/
@@ -18,26 +16,22 @@ Beach Bird Detection Dataset v1.0/
   labels/train|val|test/
 ```
 
-Install dependencies:
+Install the Python packages:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Pointing to the dataset
+## Dataset path
 
-Every script accepts `--data` with the path to the dataset root (the folder that contains `images/` and `labels/`).
-
-Example:
+Pass the dataset root (the folder that contains `images/` and `labels/`) with `--data`:
 
 ```bash
 --data "C:/data/Beach Bird Detection Dataset v1.0"
 ```
 
-Alternatives:
-
-- set environment variable `BIRD_DATA` to that path, or
-- place the dataset at `../dataset/Beach Bird Detection Dataset v1.0` relative to this folder (default path used by the CNN scripts)
+You can also set `BIRD_DATA` to that path, or place the dataset at
+`../dataset/Beach Bird Detection Dataset v1.0` relative to this folder.
 
 ## Quick start: Method 1
 
@@ -48,7 +42,9 @@ python robustness.py --tune --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 python robustness.py --split test --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 ```
 
-`--tune` chooses detector settings on the validation set and writes `best_params.json`. The second command evaluates clean images and seven corruptions (five severity levels each) on the test set.
+`--tune` chooses detector settings on the validation set and writes `best_params.json`.
+The next command evaluates clean images and seven corruptions (five severity levels each)
+on the test set.
 
 Optional example image (green = ground truth, red = predictions):
 
@@ -56,11 +52,11 @@ Optional example image (green = ground truth, red = predictions):
 python robustness.py --split test --example 0 --corruption dark --level 5 --detectors dog doh --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 ```
 
-More detail: `nonlearning/README.md`.
+See also `nonlearning/README.md`.
 
 ## Quick start: Method 2
 
-Train one augmentation setting at a time. Checkpoints are saved under `cnn/runs/` (create that folder locally; it is not part of the ZIP).
+Train one augmentation setting at a time. Checkpoints are saved under `cnn/runs/`.
 
 | `--aug` | What training does |
 |---------|--------------------|
@@ -86,17 +82,20 @@ Optional single-image check:
 python evaluate.py runs/none.pt runs/robust.pt --example 5 --corruption blur --level 4 --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 ```
 
-Use `--split test` on `evaluate.py` only for the final test numbers. For a shorter training run, add `--frac 0.5`.
+Tips:
 
-There is also an optional notebook: `cnn/colab.ipynb`.
+- add `--frac 0.5` for a shorter training run
+- use `--split test` on `evaluate.py` for the final test numbers
+- optional notebook: `cnn/colab.ipynb`
 
-More detail: `cnn/README.md`.
+See also `cnn/README.md`.
 
 ## Evaluation metric
 
 Both methods report **mAP@0.5** (VOC-style average precision at IoU 0.5), so the scores can be compared directly.
 
-Corruptions are implemented in `cnn/corruptions.py` and reused by Method 1. The random seed for each corrupted image is the image index, so every method sees the same corrupted pixels.
+Corruptions live in `cnn/corruptions.py` and are shared with Method 1. The seed for each
+corrupted image is the image index, so every method sees the same corrupted pixels.
 
 ## External libraries
 
