@@ -1,0 +1,9 @@
+__pycache__/
+.ipynb_checkpoints/
+
+# dataset, trained models and generated pictures (not allowed in the submission zip)
+dataset/
+runs/
+*.pt
+*.png
+results_*.json
