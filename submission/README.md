@@ -1,96 +1,112 @@
-# Beach Bird Detection — COMP9517 code
+# Beach Bird Detection (COMP9517)
 
-Ready-to-run code for the group project (Method 1 + Method 2).
+This package contains the code for two bird detectors on the Beach Bird Detection Dataset v1.0:
 
-**Do not put the dataset, trained `.pt` weights, or result images in the submission ZIP** (spec ≤ 25 MB).
+1. **Method 1** (`nonlearning/`): classical detectors with no training (DoG, DoH, MSER, adaptive thresholding)
+2. **Method 2** (`cnn/`): a small CenterNet-style CNN trained from scratch, with optional data augmentation
 
-## Folder layout
+Trained weights and the dataset are not included. Download the dataset yourself, then train or run the scripts as shown below.
+
+## Requirements
+
+- Python 3.10 or newer
+- Beach Bird Detection Dataset v1.0, with this layout:
 
 ```
-submission/
-  requirements.txt
-  README.md                 ← you are here
-  nonlearning/              ← Method 1 (classical detectors, no training)
-  cnn/                      ← Method 2 (CenterNet-style CNN + augmentation)
+Beach Bird Detection Dataset v1.0/
+  images/train|val|test/
+  labels/train|val|test/
 ```
 
-## Setup
-
-1. Install Python 3.10+ and dependencies:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Download the **Beach Bird Detection Dataset v1.0** separately (not in this ZIP).
-   The folder must contain `images/{train,val,test}` and `labels/{train,val,test}`.
+## Pointing to the dataset
 
-3. Either:
-   - pass `--data "path/to/Beach Bird Detection Dataset v1.0"` to every command, or
-   - set `BIRD_DATA` to that path, or
-   - place the dataset at `../dataset/Beach Bird Detection Dataset v1.0` relative to this `submission/` folder
-     (the default search path used by the CNN scripts).
+Every script accepts `--data` with the path to the dataset root (the folder that contains `images/` and `labels/`).
 
-## Method 1 — non-learning (`nonlearning/`)
+Example:
 
-Four handcrafted detectors: DoG, DoH, MSER, adaptive thresholding.
+```bash
+--data "C:/data/Beach Bird Detection Dataset v1.0"
+```
+
+Alternatives:
+
+- set environment variable `BIRD_DATA` to that path, or
+- place the dataset at `../dataset/Beach Bird Detection Dataset v1.0` relative to this folder (default path used by the CNN scripts)
+
+## Quick start: Method 1
 
 ```bash
 cd nonlearning
 
-# 1) pick best settings on clean validation (~20 min)
 python robustness.py --tune --data "PATH/TO/Beach Bird Detection Dataset v1.0"
-
-# 2) evaluate clean + 7 corruptions × 5 levels (run once on test)
 python robustness.py --split test --data "PATH/TO/Beach Bird Detection Dataset v1.0"
-
-# optional: draw one example (green = labels, red = predictions)
-python robustness.py --split test --example 0 --corruption dark --level 5 --detectors dog doh --data "PATH/TO/..."
 ```
 
-Details: see `nonlearning/README.md`.
+`--tune` chooses detector settings on the validation set and writes `best_params.json`. The second command evaluates clean images and seven corruptions (five severity levels each) on the test set.
 
-## Method 2 — CNN (`cnn/`)
+Optional example image (green = ground truth, red = predictions):
 
-Small CenterNet-style network (~190k params), trained from scratch. Same architecture for all augmentation settings.
+```bash
+python robustness.py --split test --example 0 --corruption dark --level 5 --detectors dog doh --data "PATH/TO/Beach Bird Detection Dataset v1.0"
+```
 
-| `--aug` | Training |
-|---------|----------|
-| `none` | no augmentation (clean baseline) |
-| `basic` | flip + colour jitter |
-| `robust` | basic + random corruption (all 7 types) |
-| `robust_seen` | basic + only noise / dark / JPEG |
+More detail: `nonlearning/README.md`.
+
+## Quick start: Method 2
+
+Train one augmentation setting at a time. Checkpoints are saved under `cnn/runs/` (create that folder locally; it is not part of the ZIP).
+
+| `--aug` | What training does |
+|---------|--------------------|
+| `none` | no augmentation |
+| `basic` | horizontal flip and colour jitter |
+| `robust` | basic, plus a random corruption from all seven types |
+| `robust_seen` | basic, plus a random corruption from noise, dark, or JPEG only |
 
 ```bash
 cd cnn
 
-# train one setting (saves runs/<aug>.pt — keep these local, do not zip)
 python train.py --aug none --data "PATH/TO/Beach Bird Detection Dataset v1.0"
-python train.py --aug basic --data "PATH/TO/..."
-python train.py --aug robust --epochs 80 --data "PATH/TO/..."
-python train.py --aug robust_seen --epochs 80 --data "PATH/TO/..."
+python train.py --aug basic --data "PATH/TO/Beach Bird Detection Dataset v1.0"
+python train.py --aug robust --epochs 80 --data "PATH/TO/Beach Bird Detection Dataset v1.0"
+python train.py --aug robust_seen --epochs 80 --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 
-# evaluate on val (or --split test once at the end)
-python evaluate.py runs/none.pt runs/basic.pt runs/robust.pt runs/robust_seen.pt --data "PATH/TO/..."
-python evaluate.py runs/none.pt runs/robust.pt --example 5 --corruption blur --level 4 --data "PATH/TO/..."
+python evaluate.py runs/none.pt runs/basic.pt runs/robust.pt runs/robust_seen.pt --data "PATH/TO/Beach Bird Detection Dataset v1.0"
 ```
 
-Optional Colab notebook: `cnn/colab.ipynb`.
+Optional single-image check:
 
-Details: see `cnn/README.md`.
+```bash
+python evaluate.py runs/none.pt runs/robust.pt --example 5 --corruption blur --level 4 --data "PATH/TO/Beach Bird Detection Dataset v1.0"
+```
 
-## Metric
+Use `--split test` on `evaluate.py` only for the final test numbers. For a shorter training run, add `--frac 0.5`.
 
-Both methods report **mAP@0.5** (VOC-style all-point AP, IoU ≥ 0.5), so Method 1 and Method 2 numbers are comparable.
+There is also an optional notebook: `cnn/colab.ipynb`.
 
-Corruptions are shared (`cnn/corruptions.py`) with `seed = image index`, so every model sees the same corrupted pixels.
+More detail: `cnn/README.md`.
 
-## Third-party libraries (not our code)
+## Evaluation metric
+
+Both methods report **mAP@0.5** (VOC-style average precision at IoU 0.5), so the scores can be compared directly.
+
+Corruptions are implemented in `cnn/corruptions.py` and reused by Method 1. The random seed for each corrupted image is the image index, so every method sees the same corrupted pixels.
+
+## External libraries
 
 | Library | Used for |
 |---------|----------|
-| NumPy / OpenCV | images, classical detectors, corruptions |
+| NumPy, OpenCV | image I/O, classical detectors, corruptions |
 | PyTorch | Method 2 CNN |
-| Matplotlib | plots / example figures |
+| Matplotlib | plots and example figures |
 
-Dataset: Kai Liu, *Beach Bird Detection Dataset v1.0*, Kaggle, 2026.
+## Dataset citation
+
+Kai Liu. Beach Bird Detection Dataset v1.0. Kaggle, 2026.  
+https://www.kaggle.com/datasets/liugalhigh/beach-bird
